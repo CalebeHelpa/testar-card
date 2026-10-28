@@ -1,6 +1,6 @@
 {
   "name": "testar-card",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "type": "module",
   "description": "Plugin Claude Code / Agent SDK: teste automático de card na stage (Playwright + Azure DevOps + Firebird).",

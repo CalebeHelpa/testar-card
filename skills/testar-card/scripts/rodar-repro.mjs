@@ -18,6 +18,8 @@
 //            rodar o teste na própria máquina sem passo extra.
 // Ambiente: QA_FRONT (obrigatória), QA_STORAGE_STATE (sessão do login-stage.mjs), QA_CHROME_EXE, QA_HEADLESS,
 //           QA_LOGIN_URL_PATTERN (padrão "login"), QA_REPRO_TIMEOUT (ms por execução, padrão 120000), FB_DB etc. (banco).
+//           QA_REPRO_TRACE=1 grava também o trace do Playwright. Desligado por padrão: o trace guarda o tráfego de rede
+//           com os cabeçalhos de autenticação da sessão. Use só na máquina do dev; não anexe nem suba para bucket.
 // Saída (stdout): uma linha por teste
 //   repro=<arquivo> achado=F1 resultado=VERMELHO execucoes=2 video=<webm> trace=<zip> motivo="..."
 // e o JSON completo em --json (padrão <saida>/repro-resultados.json).
@@ -74,7 +76,7 @@ if (FAZER_LOGIN || !SESSAO) {
   if (!E.QA_USER || !E.QA_PASS) {
     if (!SESSAO) { console.error("ERRO: sem sessão (QA_STORAGE_STATE) e sem QA_USER/QA_PASS para fazer o login. Rode login-stage.mjs ou use --login."); process.exit(2); }
   } else {
-    SESSAO = path.join(SAIDA, "sessao.json");
+    SESSAO = path.join(SAIDA, "storage-state-repro.json"); // "storage-state" no nome: os filtros de upload já pulam
     const r = spawnSync(process.execPath, [path.join(AQUI, "login-stage.mjs")], { cwd: RAIZ, env: { ...E, QA_STORAGE_STATE: SESSAO }, encoding: "utf8" });
     if (r.status !== 0) { console.error(`ERRO: login falhou (exit ${r.status}): ${(r.stderr || "").trim().split("\n").pop()}`); process.exit(2); }
   }
@@ -105,7 +107,8 @@ async function executarUma(fn, dir) {
   fs.mkdirSync(dir, { recursive: true });
   const browser = await chromium.launch({ headless: E.QA_HEADLESS !== "0", executablePath: E.QA_CHROME_EXE || undefined });
   const ctx = await browser.newContext({ storageState: SESSAO, viewport: { width: 1280, height: 800 }, recordVideo: { dir, size: { width: 1280, height: 800 } } });
-  await ctx.tracing.start({ screenshots: true, snapshots: true });
+  const TRACE = E.QA_REPRO_TRACE === "1";
+  if (TRACE) await ctx.tracing.start({ screenshots: true, snapshots: true });
   const page = await ctx.newPage();
   const respostas = [];
   page.on("response", (r) => { try { respostas.push({ metodo: r.request().method(), url: r.url(), status: r.status() }); } catch {} });
@@ -140,8 +143,8 @@ async function executarUma(fn, dir) {
   }
   const screenshot = path.join(dir, "final.png");
   await page.screenshot({ path: screenshot }).catch(() => {});
-  const trace = path.join(dir, "trace.zip");
-  await ctx.tracing.stop({ path: trace }).catch(() => {});
+  const trace = TRACE ? path.join(dir, "trace.zip") : null;
+  if (TRACE) await ctx.tracing.stop({ path: trace }).catch(() => {});
   const video = page.video();
   await ctx.close().catch(() => {});
   await browser.close().catch(() => {});
