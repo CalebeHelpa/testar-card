@@ -1,7 +1,7 @@
 # Teste de reprodução: o defeito vira um teste vermelho
 
 Para cada achado que **ficou como `defeito` depois da revisão**, escreva um teste curto que **afirma o comportamento
-correto** e por isso **falha hoje**. Ele vai anexado ao card junto com o vídeo da falha. O dev roda o teste até ficar
+correto** e por isso **falha hoje**. Ele vai anexado ao card; o vídeo da falha fica na pasta de resultados (e vai para o card só com `QA_ANEXAR_VIDEO=1`). O dev roda o teste até ficar
 verde, e o reteste do card roda o mesmo teste **sem IA**: se nada mudou e ele continua vermelho, o card volta sem
 gastar um agente.
 

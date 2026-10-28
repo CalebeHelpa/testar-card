@@ -30,6 +30,7 @@ Os scripts ficam em `${CLAUDE_PLUGIN_ROOT}/skills/testar-card/scripts/`. Abaixo,
 | `FB_DB`, `FB_USER`, `FB_PASS`, `ISQL` | banco da stage para o `consultar-banco.sh` | obrigatórios |
 | `QA_EXIGE_CRITERIO` | `1` = card sem critério de aceite é BLOQUEADO | `1` |
 | `QA_ESCREVE_ADO` | `1` = `publicar-resultado.mjs` escreve no card; senão dry-run | vazio |
+| `QA_ANEXAR_VIDEO` | `1` = o vídeo de cada teste vermelho também vai para o card | vazio (fica na pasta de resultados) |
 | `QA_MODO` | `completo` \| `reteste` (o card voltou; ver `references/reteste.md`). O orquestrador decide com `reteste.mjs` | `completo` |
 | `QA_RELATORIO_ANTERIOR`, `QA_REPRO_RESULTADOS` | no reteste: relatório anterior e resultado dos testes de reprodução já rodados | — |
 
@@ -213,11 +214,12 @@ o repo Delphi. A **execução** do Delphi não faz parte deste modo: escreva "ex
 ## Passo 6 — Publicar no card
 
 ```bash
-node $S/publicar-resultado.mjs $card <pasta>/relatorio-<card>-<data>.md <pasta>/repro/*.repro.mjs [vídeos dos vermelhos...]
+node $S/publicar-resultado.mjs $card <pasta>/relatorio-<card>-<data>.md <pasta>/repro/*.repro.mjs
 ```
 
-Anexe junto os testes de reprodução e o vídeo de cada VERMELHO (`repro-resultados/<nome>/2/video.webm`): no próximo
-reteste o preparo baixa esses anexos de volta, mesmo num container novo. No modo autônomo o orquestrador anexa.
+Anexe junto os testes de reprodução: no próximo reteste o preparo baixa esses anexos de volta, mesmo num container
+novo. O vídeo de cada VERMELHO (`repro-resultados/<nome>/2/video.webm`) só vai para o card com `QA_ANEXAR_VIDEO=1`.
+No modo autônomo o orquestrador anexa.
 
 Anexa o `.md` ao card, comenta o `## Resumo` e move o card (`QA_ESTADO_APROVADO` / `QA_ESTADO_REPROVADO` /
 `QA_ESTADO_BLOQUEADO`, ou coluna Kanban por `QA_BOARD_ID` + `QA_COLUNA_*`). **Só escreve com `QA_ESCREVE_ADO=1`**;

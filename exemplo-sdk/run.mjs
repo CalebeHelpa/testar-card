@@ -27,6 +27,8 @@ if (fs.existsSync(envFile)) for (const l of fs.readFileSync(envFile, "utf8").spl
   const m = l.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
   if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
 }
+// Vídeo do teste vermelho vai para o card só com QA_ANEXAR_VIDEO=1; por padrão fica na pasta de resultados.
+const ANEXAR_VIDEO = process.env.QA_ANEXAR_VIDEO === "1";
 const pasta = path.join(TESTES_DIR, card);
 const QA_OUT_DIR = path.join(pasta, "screenshots");
 const QA_STORAGE_STATE = path.join(pasta, "storage-state.json");
@@ -166,9 +168,10 @@ marcarCabecalho(rel, {
 const anexos = anexosParaPublicar();
 const pub = node("publicar-resultado.mjs", [card, rel, ...anexos], { env: envPublicar() });
 process.stdout.write(pub.stdout || ""); process.stderr.write(pub.stderr || "");
-const veredito = (pub.stdout.match(/veredito=(\w+)/) || [])[1] || "BLOQUEADO";
+// o veredito vem do cabeçalho do relatório (a fonte da verdade), não da saída da publicação
+const veredito = ((fs.readFileSync(rel, "utf8").match(/^veredito:\s*(\w+)/m) || [])[1] || "BLOQUEADO").toUpperCase();
 console.log(`veredito=${veredito} modo=${modo} custo=$${custo.usd.toFixed(2)} relatorio=${rel}`);
-process.exit({ APROVADO: 0, REPROVADO: 10, BLOQUEADO: 20 }[veredito] ?? 1);
+sair(veredito, pub);
 
 // --- funções ------------------------------------------------------------------------------------------------------
 
@@ -230,7 +233,7 @@ function relatorioSoRepro(res) {
     "",
     "## Resumo",
     `**Reteste:** nenhum commit novo desde o teste de ${dec.quando_anterior}; ${defeitosAnteriores.map((d) => `${d.id} PERSISTE`).join(" · ")}.`,
-    `**Falhou:** ${defeitosAnteriores.map((d) => `${d.id} ${d.titulo} (teste de reprodução vermelho 2/2, vídeo anexado)`).join(" · ")}`,
+    `**Falhou:** ${defeitosAnteriores.map((d) => `${d.id} ${d.titulo} (teste de reprodução vermelho 2/2${ANEXAR_VIDEO ? ", vídeo anexado" : ""})`).join(" · ")}`,
     "**Como:** só os testes de reprodução, sem agente. O código do card não mudou, então o roteiro não foi refeito.",
     "",
     "## Achados anteriores",
@@ -253,7 +256,7 @@ function relatorioSoRepro(res) {
   return arq;
 }
 
-// Anexos: testes de reprodução novos ou alterados (o card já tem os iguais) e o vídeo de cada vermelho.
+// Anexos: testes de reprodução novos ou alterados (o card já tem os iguais) e, com QA_ANEXAR_VIDEO=1, o vídeo de cada vermelho.
 function anexosParaPublicar() {
   const lista = [];
   const dirRepro = path.join(pasta, "repro");
@@ -263,6 +266,7 @@ function anexosParaPublicar() {
     if (fs.existsSync(noCard) && fs.readFileSync(noCard, "utf8") === fs.readFileSync(arq, "utf8")) continue;
     lista.push(arq);
   }
+  if (!ANEXAR_VIDEO) return lista;
   let res = [];
   try { res = JSON.parse(fs.readFileSync(path.join(REPRO_OUT, "repro-resultados.json"), "utf8")).resultados || []; } catch {}
   for (const r of res) {
@@ -283,5 +287,15 @@ async function bloqueado(motivo) {
   const pub = node("publicar-resultado.mjs", [card, arq], { env: envPublicar() });
   process.stdout.write(pub.stdout || ""); process.stderr.write(pub.stderr || "");
   console.log(`veredito=BLOQUEADO motivo=${motivo}`);
-  process.exit(20);
+  sair("BLOQUEADO", pub);
+}
+
+// Com QA_ESCREVE_ADO=1, publicar no card faz parte do trabalho: se falhar, é erro de execução (exit 1), não um
+// veredito. O relatório continua na pasta do card. Em dry-run a publicação não escreve, então não decide nada.
+function sair(veredito, pub) {
+  if (pub.status !== 0 && process.env.QA_ESCREVE_ADO === "1") {
+    console.log(`ERRO: a publicação no card falhou (exit ${pub.status}); o veredito ${veredito} ficou só no relatório local`);
+    process.exit(1);
+  }
+  process.exit({ APROVADO: 0, REPROVADO: 10, BLOQUEADO: 20 }[veredito] ?? 1);
 }

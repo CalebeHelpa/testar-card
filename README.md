@@ -62,7 +62,7 @@ O orquestrador lê o veredito no cabeçalho YAML do relatório (`veredito:`), n�
 
 Cada achado que fica como **defeito** depois da revisão sai com um **teste de reprodução**
 (`repro/<card>-F1.repro.mjs`): um script Playwright curto que afirma o comportamento **correto** e por isso falha
-hoje. Ele vai anexado ao card com o **vídeo da falha**.
+hoje. Ele vai anexado ao card. O **vídeo da falha** fica em `repro-resultados/` e só vai para o card com `QA_ANEXAR_VIDEO=1`.
 
 - **Para o dev:** é o critério de pronto. `node skills/testar-card/scripts/rodar-repro.mjs 1234-F1.repro.mjs --login`
   roda na máquina dele (faz o login sozinho) e diz VERMELHO ou VERDE.
@@ -71,7 +71,7 @@ hoje. Ele vai anexado ao card com o **vídeo da falha**.
 
 | Situação quando o card volta | Modo | Custo |
 |---|---|---|
-| Nenhum commit novo e os testes de reprodução continuam VERMELHO 2/2 | `so-repro`: reprova de novo com os vídeos, **sem agente** | ~4 min, sem tokens |
+| Nenhum commit novo e os testes de reprodução continuam VERMELHO 2/2 | `so-repro`: reprova de novo citando os testes vermelhos, **sem agente** | ~4 min, sem tokens |
 | Commit novo, ou defeito ainda sem teste | `reteste`: agente só nos defeitos anteriores e nos itens que tocam os arquivos mudados | caso medido: 6 min contra 55 min da rodada completa |
 | Primeira vez, ou voltou depois de APROVADO/BLOQUEADO | `completo` | rodada inteira |
 
