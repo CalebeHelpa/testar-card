@@ -1,0 +1,20 @@
+{
+  "name": "testar-card",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Plugin Claude Code / Agent SDK: teste automático de card na stage (Playwright + Azure DevOps + Firebird).",
+  "scripts": {
+    "postinstall": "node skills/testar-card/scripts/instalar-navegador.mjs",
+    "login": "node skills/testar-card/scripts/login-stage.mjs",
+    "preparar": "node skills/testar-card/scripts/preparar-card.mjs",
+    "publicar": "node skills/testar-card/scripts/publicar-resultado.mjs",
+    "exemplo": "node exemplo-sdk/run.mjs"
+  },
+  "dependencies": {
+    "@playwright/mcp": "0.0.83"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/claude-agent-sdk": "latest"
+  }
+}

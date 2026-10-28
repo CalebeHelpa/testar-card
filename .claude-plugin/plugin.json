@@ -1,0 +1,8 @@
+{
+  "name": "testar-card",
+  "version": "1.0.0",
+  "description": "Teste automático de card na stage: lê o card e o PR no Azure DevOps, monta o mapa de fluxo a partir do código (Angular + API .NET + legado Delphi), executa roteiro e exploração no navegador (Playwright) com evidência de tela, rede e banco (Firebird), compara protótipo e paridade com o Delphi, e entrega relatório com veredito, proposta de correção e rascunho de bug. Roda interativo (Claude Code) ou autônomo (Agent SDK).",
+  "author": { "name": "Sisand" },
+  "license": "MIT",
+  "keywords": ["qa", "teste", "azure-devops", "playwright", "firebird", "angular", "delphi", "claude-code", "agent-sdk"]
+}

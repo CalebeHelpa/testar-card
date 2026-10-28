@@ -1,0 +1,10 @@
+{
+  "_comentario": "Opcional. A stage é uma só (QA_FRONT + FB_DB). A base de cada cliente citado no card vem do arquivo de conexões (QA_CONEXOES: bloco ConnectionStrings com \"Context<Cliente>\": \"Server=...;Database=...\"), achada pelo nome do cliente; serve como base de REFERÊNCIA só leitura. Use 'clientes' quando o nome do card não bate com o nome do Context (aliases) ou quando o card cita só o número do cliente. 'padrao.empresa' é o texto da etapa de empresa do login quando o card não indica filial.",
+  "padrao": {
+    "nome": "Base padrão da stage",
+    "empresa": "1"
+  },
+  "clientes": {
+    "101": { "nome": "Cliente Exemplo", "contexto": "ClienteExemplo", "aliases": ["Exemplo Motos", "Exemplo Veículos"] }
+  }
+}
