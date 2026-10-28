@@ -6,3 +6,6 @@ storage-state*.json
 conexoes.txt
 testes-card/
 repos/
+repro-resultados/
+storage-state*
+sessao.json*
