@@ -30,10 +30,13 @@ fs.mkdirSync(QA_OUT_DIR, { recursive: true });
 
 const env = { ...process.env, TESTES_DIR, QA_OUT_DIR, QA_STORAGE_STATE, QA_AUTONOMO: "1" };
 delete env.QA_PASS; // o agente não recebe a senha
+// Nem a credencial do ADO: o agente lê texto de card (entrada não confiável). Só o preparo e a publicação usam.
+const envAdo = { ...env };
+for (const k of Object.keys(env)) if (/^(ADO_PAT|AZURE_)/.test(k)) delete env[k];
 
 // 1) preparar: lê o card e resolve o ambiente (cliente/filial do card → front, banco, empresa do login)
 console.log("[1/4] preparar card...");
-const prep = spawnSync(process.execPath, [path.join(SCRIPTS, "preparar-card.mjs"), card], { env, encoding: "utf8" });
+const prep = spawnSync(process.execPath, [path.join(SCRIPTS, "preparar-card.mjs"), card], { env: envAdo, encoding: "utf8" });
 process.stderr.write(prep.stderr || "");
 if (prep.status !== 0) await bloqueado(`preparo do card falhou (exit ${prep.status})`);
 const chaves = Object.fromEntries((prep.stdout || "").split(/\r?\n/).map((l) => l.match(/^([^=]+)=(.*)$/)).filter(Boolean).map((m) => [m[1], m[2]]));
@@ -88,7 +91,7 @@ for await (const m of query({
 console.log("[4/4] publicar...");
 const rel = fs.readdirSync(pasta).filter((f) => /^relatorio-\d+-.*\.md$/.test(f)).sort().pop();
 if (!rel) await bloqueado("agente não produziu relatório");
-const pub = spawnSync(process.execPath, [path.join(SCRIPTS, "publicar-resultado.mjs"), card, path.join(pasta, rel)], { env, encoding: "utf8" });
+const pub = spawnSync(process.execPath, [path.join(SCRIPTS, "publicar-resultado.mjs"), card, path.join(pasta, rel)], { env: { ...envAdo, ...env, ...Object.fromEntries(Object.entries(envAdo).filter(([k]) => /^(ADO_PAT|AZURE_)/.test(k))) }, encoding: "utf8" });
 process.stdout.write(pub.stdout || ""); process.stderr.write(pub.stderr || "");
 const veredito = (pub.stdout.match(/veredito=(\w+)/) || [])[1] || "BLOQUEADO";
 console.log(`veredito=${veredito} relatorio=${path.join(pasta, rel)}`);
@@ -101,7 +104,7 @@ async function bloqueado(motivo) {
   const data = new Date().toISOString().slice(0, 10);
   const arq = path.join(pasta, `relatorio-${card}-${data}.md`);
   if (!fs.existsSync(arq)) fs.writeFileSync(arq, `---\ncard: ${card}\nveredito: BLOQUEADO\nmotivo_bloqueio: ${motivo}\ndata: ${data}\nmodo: autonomo\n---\n\n# Teste do card ${card}\n\n## Resumo\n**Bloqueado:** ${motivo}\n`);
-  const pub = spawnSync(process.execPath, [path.join(SCRIPTS, "publicar-resultado.mjs"), card, arq], { env, encoding: "utf8" });
+  const pub = spawnSync(process.execPath, [path.join(SCRIPTS, "publicar-resultado.mjs"), card, arq], { env: { ...envAdo, ...env, ...Object.fromEntries(Object.entries(envAdo).filter(([k]) => /^(ADO_PAT|AZURE_)/.test(k))) }, encoding: "utf8" });
   process.stdout.write(pub.stdout || ""); process.stderr.write(pub.stderr || "");
   console.log(`veredito=BLOQUEADO motivo=${motivo}`);
   process.exit(20);
