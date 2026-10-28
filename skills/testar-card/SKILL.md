@@ -30,6 +30,8 @@ Os scripts ficam em `${CLAUDE_PLUGIN_ROOT}/skills/testar-card/scripts/`. Abaixo,
 | `FB_DB`, `FB_USER`, `FB_PASS`, `ISQL` | banco da stage para o `consultar-banco.sh` | obrigatórios |
 | `QA_EXIGE_CRITERIO` | `1` = card sem critério de aceite é BLOQUEADO | `1` |
 | `QA_ESCREVE_ADO` | `1` = `publicar-resultado.mjs` escreve no card; senão dry-run | vazio |
+| `QA_MODO` | `completo` \| `reteste` (o card voltou; ver `references/reteste.md`). O orquestrador decide com `reteste.mjs` | `completo` |
+| `QA_RELATORIO_ANTERIOR`, `QA_REPRO_RESULTADOS` | no reteste: relatório anterior e resultado dos testes de reprodução já rodados | — |
 
 **Modo interativo** (sem `QA_AUTONOMO`): há um humano na sessão; mostre o roteiro antes de executar e pergunte antes
 de publicar. **Modo autônomo** (`QA_AUTONOMO=1`): nenhuma pergunta; tudo que você perguntaria vira seção do relatório.
@@ -49,10 +51,12 @@ node $S/preparar-card.mjs $card
 ```
 
 Devolve `chave=valor`: título, estado, coluna, pai, `card_md` (descrição, critério, repro e comentários em texto),
-`card_json`, `comentarios_json`, `anexo=...` (baixados para `<pasta>/anexos/`), branches e PRs, `na_stage_*` (a branch
-está em `origin/stage`?), `build_*` e `publicado_*` (o último build da stage contém a branch?), e o **ambiente do
-teste** lido do template do card ("Grupo de empresa / NR Cliente", "Filial", "Acesso"): `cliente_nr`, `cliente_nome`,
-`filial`, `qa_ambiente` (`padrao` | `cliente` | `cliente-sem-mapeamento`), `qa_front`, `qa_banco`, `qa_empresa`.
+`card_json`, `comentarios_json`, `anexo=...` (baixados para `<pasta>/anexos/`), `anexo_qa=...` (relatório, teste de
+reprodução e vídeo que o próprio bot anexou antes: **não** são protótipo), branches e PRs, `sha_*` (versão da branch),
+`na_stage_*` (a branch está em `origin/stage`?), `build_*` e `publicado_*` (o último build da stage contém a branch?),
+e o **ambiente do teste** lido do template do card ("Grupo de empresa / NR Cliente", "Filial", "Acesso"):
+`cliente_nr`, `cliente_nome`, `filial`, `qa_ambiente` (`padrao` | `cliente-com-base` | `cliente-sem-base`),
+`qa_front`, `qa_banco`, `qa_banco_cliente`, `qa_empresa`. Tudo fica também em `<pasta>/preparo.txt`.
 
 **Ambiente.** A stage é uma só (`qa_front`) e grava num banco só (`qa_banco`): a evidência de banco dos itens
 vem **sempre** de `FB_DB=<qa_banco>`. A lista de empresas do login da stage é a tabela de empresas desse banco; `qa_empresa` é a
@@ -80,6 +84,10 @@ Regras duras:
   no roteiro como item obrigatório (Passo 4b). `anexo=NENHUM` e descrição sem "protótipo"/"Figma" → registre "sem
   protótipo; layout não comparado". Caso real: um card tinha protótipo `.html` anexo e a primeira rodada validou só
   estrutura, não layout; a comparação veio depois, a pedido.
+
+**Card que voltou.** Se o bot já testou este card (há `anexo_qa=relatorio-...` ou relatório na pasta), o teste não
+recomeça do zero: `QA_MODO=reteste` (autônomo) ou `node $S/reteste.mjs $card` dizendo `modo=reteste` (interativo; mostre
+a sugestão ao testador) → siga `references/reteste.md` **no lugar dos Passos 2 a 4**, e volte ao Passo 5.
 
 ## Passo 2 — Mapa de fluxo (gerado na hora, do código)
 
@@ -192,17 +200,24 @@ o repo Delphi. A **execução** do Delphi não faz parte deste modo: escreva "ex
    devolve uma tabela com MANTIDO / REBAIXADO / DERRUBADO / ARTEFATO por achado. Cole a tabela na seção "Revisão dos
    achados" e aplique: derrubado vai para "Descartados na revisão"; rebaixado muda de classificação; artefato vira
    NÃO COBERTO com motivo.
-3. Recalcule o cabeçalho (contadores e `veredito`): BLOQUEADO (build sem a branch, sem critério, ferramenta impediu a
+3. **Teste de reprodução** para cada `defeito` mantido: escreva `<pasta>/repro/<card>-F<n>.repro.mjs` e rode com
+   `node $S/rodar-repro.mjs <arquivo> --saida <pasta>/repro-resultados` até dar **VERMELHO pelo motivo certo**, conforme
+   `references/repro.md` (no máximo duas correções). Registre a linha **Teste de reprodução** no achado. É o que o dev
+   usa para saber que corrigiu, e o que deixa o próximo reteste rodar sem agente.
+4. Recalcule o cabeçalho (contadores e `veredito`): BLOQUEADO (build sem a branch, sem critério, ferramenta impediu a
    maioria dos itens) · REPROVADO (ao menos um `defeito` mantido) · APROVADO (nenhum defeito; dúvidas e divergências
    de protótipo não bloqueiam, vão para o comentário e para "Perguntas para a PO").
-4. Termine **no chat** com os blocos do `## Resumo`: **Falhou**, **Layout**, **Dúvidas**, **Não coberto**, **Passou**,
+5. Termine **no chat** com os blocos do `## Resumo`: **Falhou**, **Layout**, **Dúvidas**, **Não coberto**, **Passou**,
    e diga onde o relatório ficou.
 
 ## Passo 6 — Publicar no card
 
 ```bash
-node $S/publicar-resultado.mjs $card <pasta>/relatorio-<card>-<data>.md [screenshots das falhas...]
+node $S/publicar-resultado.mjs $card <pasta>/relatorio-<card>-<data>.md <pasta>/repro/*.repro.mjs [vídeos dos vermelhos...]
 ```
+
+Anexe junto os testes de reprodução e o vídeo de cada VERMELHO (`repro-resultados/<nome>/2/video.webm`): no próximo
+reteste o preparo baixa esses anexos de volta, mesmo num container novo. No modo autônomo o orquestrador anexa.
 
 Anexa o `.md` ao card, comenta o `## Resumo` e move o card (`QA_ESTADO_APROVADO` / `QA_ESTADO_REPROVADO` /
 `QA_ESTADO_BLOQUEADO`, ou coluna Kanban por `QA_BOARD_ID` + `QA_COLUNA_*`). **Só escreve com `QA_ESCREVE_ADO=1`**;

@@ -123,14 +123,18 @@ try {
 
   await page.waitForURL((u) => !LOGIN_RE.test(u.href), { timeout: 60000 });
   await page.waitForLoadState("networkidle", { timeout: 60000 }).catch(() => {});
-  if (LOGIN_RE.test(page.url()) || (await page.locator(SEL.pass).count())) {
+  if (LOGIN_RE.test(page.url()) || (await page.locator(SEL.pass).first().isVisible().catch(() => false))) {
     console.error("ERRO: ainda na tela de login após enviar o formulário. Usuário/senha/empresa?");
     process.exit(3);
   }
   await ctx.storageState({ path: OUT });
   const emp = escolhida ? ` empresa="${escolhida.DSAPELIDO} - ${escolhida.NMFANTASIA}" cdempresa=${escolhida.CDEMPRESA}` : "";
   const aviso = empresaPedidaNaoEncontrada ? ` empresa_pedida_nao_encontrada="${empresaPedidaNaoEncontrada}"` : "";
-  console.log(`ok url=${page.url()}${emp}${aviso} storage_state=${OUT}`);
+  // A stage pode redirecionar o login para outro endereço (ex.: IP interno → DNS público). A sessão fica presa ao
+  // endereço final: registra-o ao lado da sessão para o agente e os testes de reprodução navegarem nele.
+  const frontEfetivo = `${new URL(page.url()).origin}${new URL(QA_FRONT).pathname}`;
+  fs.writeFileSync(`${OUT}.front`, frontEfetivo);
+  console.log(`ok url=${page.url()}${emp}${aviso} front_efetivo=${frontEfetivo} storage_state=${OUT}`);
 } catch (e) {
   console.error(`ERRO no login: ${e.message}`);
   try { await page.screenshot({ path: OUT.replace(/\.json$/, "") + "-erro.png" }); } catch {}

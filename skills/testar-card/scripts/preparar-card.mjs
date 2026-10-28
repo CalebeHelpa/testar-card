@@ -43,7 +43,8 @@ const PASTA = path.join(OUTDIR, CARD);
 
 function die(code, msg) { process.stderr.write(msg + "\n"); process.exit(code); }
 function msg(s) { process.stderr.write(s + "\n"); }
-function out(k, v) { process.stdout.write(`${k}=${String(v ?? "").replace(/\r?\n/g, " ").trim()}\n`); }
+const LINHAS = []; // tudo que vai para o stdout também vai para <pasta>/preparo.txt (o reteste lê de lá)
+function out(k, v) { const l = `${k}=${String(v ?? "").replace(/\r?\n/g, " ").trim()}`; LINHAS.push(l); process.stdout.write(l + "\n"); }
 
 // --- Credencial -------------------------------------------------------------
 let AUTH; // header Authorization
@@ -168,6 +169,8 @@ function htmlParaTexto(html) {
       const resp = await api(`${r.url}?api-version=7.1&download=true`, { raw: true, headers: { Accept: "*/*" } });
       const buf = Buffer.from(await resp.arrayBuffer());
       fs.writeFileSync(path.join(PASTA, "anexos", nome), buf);
+      // artefatos do próprio bot (relatório anterior, teste de reprodução, vídeo, trace) não são anexo do card
+      if (/^relatorio-\d+-.*\.md$|\.repro\.mjs$|\.webm$|^trace.*\.zip$/i.test(nome)) { out("anexo_qa", `${path.join(PASTA, "anexos", nome)} (${buf.length} bytes)`); continue; }
       out("anexo", `${path.join(PASTA, "anexos", nome)} (${buf.length} bytes)`);
       nAnexos++;
     } catch (e) { out("anexo", `FALHOU ${nome} (${e.message})`); }
@@ -199,6 +202,8 @@ function htmlParaTexto(html) {
     const r = REPOS[b.repo]; if (!r || !r.dir) continue;
     const sha = git(r.dir, ["rev-parse", `origin/${b.ref}`]);
     if (!sha) { out(`na_stage_${b.repo}`, "branch não existe na origin"); continue; }
+    out(`sha_${b.repo}`, sha);
+    out(`repo_dir_${b.repo}`, r.dir);
     const ok = git(r.dir, ["merge-base", "--is-ancestor", sha, `origin/${STAGE}`], { ok: true });
     out(`na_stage_${b.repo}`, ok ? `SIM (${sha.slice(0, 8)})` : `NAO (${sha.slice(0, 8)} não está em origin/${STAGE})`);
   }
@@ -230,5 +235,6 @@ function htmlParaTexto(html) {
   if (!branches.length) out("publicado", "SEM BRANCH VINCULADA (não dá para conferir a stage)");
 
   out("pasta", PASTA);
+  fs.writeFileSync(path.join(PASTA, "preparo.txt"), LINHAS.join("\n") + "\n");
   msg(`OK. Arquivos em ${PASTA}`);
 })().catch((e) => die(1, `ERRO: ${e.stack || e}`));

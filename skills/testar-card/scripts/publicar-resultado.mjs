@@ -67,7 +67,11 @@ const coluna = env[`QA_COLUNA_${VEREDITO}`] || "";
 const boardId = env.QA_BOARD_ID || "";
 const comenta = env.QA_SEM_COMENTARIO !== "1";
 const icone = { APROVADO: "✅", REPROVADO: "❌", BLOQUEADO: "⛔" }[VEREDITO];
-const comentarioHtml = `<p><b>${icone} Teste automático (Claude QA): ${VEREDITO}</b></p><pre>${escapeHtml(resumo)}</pre><p>Relatório completo anexado: <code>${path.basename(RELATORIO)}</code></p>`;
+const reprosAnexados = anexos.filter((a) => a.endsWith(".repro.mjs")).map((a) => path.basename(a));
+const comentarioRepro = reprosAnexados.length
+  ? `<p>Teste de reprodução anexado (falha hoje, passa quando corrigir): ${reprosAnexados.map((r) => `<code>${r}</code>`).join(", ")}. Para conferir a correção: <code>node &lt;plugin testar-card&gt;/skills/testar-card/scripts/rodar-repro.mjs ${reprosAnexados[0]} --login</code></p>`
+  : "";
+const comentarioHtml = `<p><b>${icone} Teste automático (Claude QA): ${VEREDITO}</b></p><pre>${escapeHtml(resumo)}</pre><p>Relatório completo anexado: <code>${path.basename(RELATORIO)}</code></p>${comentarioRepro}`;
 
 log(`Card ${CARD} · veredito ${VEREDITO}`);
 log(`- anexar: ${anexos.map((a) => path.basename(a)).join(", ")}`);

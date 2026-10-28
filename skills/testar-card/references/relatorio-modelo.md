@@ -13,7 +13,12 @@ titulo: Cadastro de exemplo
 veredito: REPROVADO            # APROVADO | REPROVADO | BLOQUEADO
 motivo_bloqueio:               # só quando BLOQUEADO: "build do Angular não contém a branch" / "sem critério de aceite" / "sessão expirou no item 3"
 data: 2026-10-27
+data_hora: 2026-10-27T14:05:00-03:00
 modo: autonomo                 # autonomo | interativo
+tipo: completo                 # completo | reteste
+relatorio_anterior:            # só no reteste: nome do relatório anterior
+testado_back: <sha completo>   # sha_back do preparo: a versão que este teste viu (o reteste compara com ela)
+testado_front: <sha completo>  # sha_front do preparo
 ambiente: <QA_FRONT> · back <sha8> · front <sha8> · banco <host:base>
 publicado_back: SIM
 publicado_front: SIM
@@ -25,6 +30,7 @@ defeitos: 2                    # achados mantidos como defeito após a revisão
 duvidas: 1
 layout_divergencias: 3
 paridade_delphi: feita         # feita | nao-se-aplica | NAO COBERTA
+repro_vermelhos: 2             # testes de reprodução VERMELHO 2/2 (um por defeito, quando automatizável)
 ---
 
 # Teste do card <card> — <título>
@@ -64,6 +70,8 @@ A. Critério de aceite: A1 ... A5 · B. Exploração: B1 ... B8 · C. Paridade D
 **Onde no código (hipótese):** `entidade.service.ts:48` ⚠️ HIPÓTESE
 **Proposta de correção:** <o que mudar, em 2 a 4 linhas; se houver, um esboço de diff>
 **Teste de regressão sugerido:** <o item do roteiro que reexecuta isto, ou um teste unitário>
+**Teste de reprodução:** `repro/1234-F1.repro.mjs` · VERMELHO 2/2 · vídeo `repro-resultados/1234-F1/2/video.webm`
+(ou: não automatizado — <motivo>)
 
 ## Layout — comparação com o protótipo
 | Elemento | Protótipo | Stage | Veredito | Classificação |

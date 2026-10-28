@@ -58,6 +58,33 @@ O orquestrador lê o veredito no cabeçalho YAML do relatório (`veredito:`), n�
 - **Ninguém digita senha.** O login é fixture; tela de login no meio do teste é artefato, não defeito.
 - **`browser_run_code_unsafe` fica em `disallowedTools`.** Executa código arbitrário no processo do Playwright.
 
+## O defeito vira teste, e o reteste fica barato
+
+Cada achado que fica como **defeito** depois da revisão sai com um **teste de reprodução**
+(`repro/<card>-F1.repro.mjs`): um script Playwright curto que afirma o comportamento **correto** e por isso falha
+hoje. Ele vai anexado ao card com o **vídeo da falha**.
+
+- **Para o dev:** é o critério de pronto. `node skills/testar-card/scripts/rodar-repro.mjs 1234-F1.repro.mjs --login`
+  roda na máquina dele (faz o login sozinho) e diz VERMELHO ou VERDE.
+- **Para o reteste:** quando o card volta para a coluna, o `reteste.mjs` acha o relatório anterior (na pasta ou nos
+  anexos do card) e compara a versão testada com a atual. O modo sai daí:
+
+| Situação quando o card volta | Modo | Custo |
+|---|---|---|
+| Nenhum commit novo e os testes de reprodução continuam VERMELHO 2/2 | `so-repro`: reprova de novo com os vídeos, **sem agente** | ~4 min, sem tokens |
+| Commit novo, ou defeito ainda sem teste | `reteste`: agente só nos defeitos anteriores e nos itens que tocam os arquivos mudados | caso medido: 6 min contra 55 min da rodada completa |
+| Primeira vez, ou voltou depois de APROVADO/BLOQUEADO | `completo` | rodada inteira |
+
+Resultados do `rodar-repro.mjs`: **VERMELHO** (falhou na asserção do comportamento correto, nas 2 execuções) ·
+**VERDE** · **INSTAVEL** (vermelho uma vez só) · **QUEBRADO** (não chegou à asserção: seletor ou tela mudaram) ·
+**INFRA** (sessão expirada, stage fora). Só VERMELHO 2/2 reprova sem agente; qualquer outro chama o agente para
+conferir. Contrato do teste em `skills/testar-card/references/repro.md`; procedimento do reteste em
+`references/reteste.md`.
+
+Antes de subir o agente, o orquestrador também decide sozinho os bloqueios óbvios (build da stage sem a branch, card
+sem branch, critério de aceite ausente com `QA_EXIGE_CRITERIO=1`) e carimba no cabeçalho do relatório
+`testado_back`/`testado_front`, `execucao`, `custo_usd`, `duracao_min` e `turnos`.
+
 ## Integração com o Agent SDK (TypeScript)
 
 ```js
@@ -99,8 +126,9 @@ Todas estão em `.env.exemplo`, com comentários. As obrigatórias: `ADO_ORG`, `
 
 ## Fora do escopo (ideias para depois)
 
-Execução do Delphi (espelho de UI), conhecimento acumulado por tela, jornadas de usuário ponta a ponta, trace do
-Playwright anexado ao card, autoaprimoramento a partir de bugs escapados, parte estática rodando na abertura do PR.
+Execução do Delphi (espelho de UI), conhecimento acumulado por tela, jornadas de usuário ponta a ponta,
+autoaprimoramento a partir de bugs escapados, parte estática rodando na abertura do PR, teste direto na base do
+cliente (quando o login da stage permite escolher a base).
 
 ## Licença
 
