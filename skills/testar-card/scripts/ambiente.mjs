@@ -42,7 +42,7 @@ export function extrairClienteFilial(texto) {
   // corta no próximo rótulo (só em começo de linha ou depois de ponto; "solicitante" no meio de parêntese não é rótulo)
   bloco = bloco.split(new RegExp(`(?<=^|[\\n.]\\s{0,3}-?\\s{0,3})(?:Ramo(?: do cliente)?|Acesso|Descri[çc][aã]o|Data da Solicita|In[ií]cio do|Passos para|Vers[aã]o|Solicitante|Usu[aá]rio \\/ Cargo)\\b`, "i"))[0];
 
-  const semCliente = /todos os clientes|n[aã]o se aplica a um cliente|todas as bases/i.test(bloco);
+  const semCliente = /todos os clientes|n[aã]o se aplica a um cliente|todas as bases|n[aã]o vinculad[ao] a (?:nenhum |um )?cliente/i.test(bloco);
   if (semCliente) return { clienteNr: null, clienteNome: null, filial: null };
 
   const mF = bloco.match(/(?<=(?:^|[\n.])\s*-?\s*)Filia(?:l|is|ais)\s*:?\s*/i);
@@ -54,18 +54,34 @@ export function extrairClienteFilial(texto) {
     const acesso = (t.match(/\n\s*Acesso\s*:?\s*([^\n]{0,200})/i) || [])[1] || "";
     clienteNr = (acesso.match(/\b(?:base|cliente)\s+(\d{1,3})\b/i) || [])[1] || null;
   }
-  let clienteNome = parteCliente.replace(/^[\s:\/-]*(?:Cliente\s*:\s*)?/i, "").split(/\s*(?:,|\(|—|–|\s-\s|\s+cliente\s+\d|\s*NR\s*Cliente|\.\s|\n)/)[0].trim() || null;
+  // modelo com o cabeçalho "Grupo de empresa / NR Cliente / Filial / Ramo" e uma linha rotulada por campo ("- Grupo de
+  // empresa: X", "- Grupo / NR Cliente: X", "- **Grupo:** X", "Cliente originador: X"): o nome é o valor do rótulo
+  // ("NR Cliente: 102 — EXEMPLO MOTOS" vale pelo nome; GERAL é o grupo padrão, não cliente)
+  const rotulado = [...parteCliente.matchAll(/(?:^|\n)[\s*•-]*(?:Grupos?(?: d[ae] empresa)?(?:\s*\/\s*NR(?:\s*Cliente)?)?|NR\s*Cliente|Clientes?(?: originador| de origem)?)\**\s*:\**\s*([^\n]+)/gi)]
+    .map((m) => m[1].trim().replace(/^\d{1,3}\s*[-–—]\s*/, "")).find((v) => v && !/^(?:\d{1,3}|CNPJ|GERAL)\b/i.test(v));
+  let clienteNome = (rotulado ?? parteCliente.replace(/^[\s:\/*-]*(?:Cliente\s*:\s*)?/i, "")).split(/\s*(?:,|\(|—|–|\s-\s|\s+cliente\s+\d|\s*NR\s*Cliente|\.\s|\n)/)[0].replace(/[*\s]+$/, "").trim() || null;
+  const nrNoNome = clienteNome?.match(/^(.+?)\s*\/\s*(\d{1,3})$/); // "Grupo Exemplo / 86"
+  if (nrNoNome) { clienteNome = nrNoNome[1]; clienteNr ||= nrNoNome[2]; }
+  // "Grupo 1 - GERAL / NR Cliente 66 - EXEMPLO ...": o primeiro pedaço é o código do grupo; o cliente vem depois do NR
+  if (!clienteNome || /^Grupo(?: de empresa)?\s+\d+\b/i.test(clienteNome)) {
+    const depoisDoNr = (parteCliente.match(/NR\s*Cliente\s*\d{1,3}\s*[-–—]\s*([^\n(,·]+)/i) || [])[1]?.trim();
+    if (depoisDoNr && !/^(Grupo|CNPJ|\d|tod)/i.test(depoisDoNr)) clienteNome = depoisDoNr;
+  }
   if (clienteNome && /^(Grupo de empresa|Filia|NR\s*Cliente|cliente)\b/i.test(clienteNome)) clienteNome = null;
+  if (clienteNome && /^\d{1,3}$/.test(clienteNome)) { clienteNr ||= clienteNome; clienteNome = null; } // "NR Cliente: 071"
 
   let filial = null;
   if (parteFilial) {
-    const varias = [...parteFilial.matchAll(/(\d{1,3})\s*[-–—]\s*([^,;\n(]+?)\s*(\([^)]*\))?(?=\s*,|\s*;|\s+e\s+\d|\s*\.|\n|$)/g)];
+    // número, traço e nome na mesma linha: o "série 10" no fim de uma linha não casa com o "- Loja B" da de baixo;
+    // "CDEMPRESA 3 — CNPJ 05..." não é filial
+    const varias = [...parteFilial.matchAll(/(\d{1,3})[ \t]*[-–—](?![ \t]*CNPJ\b)[ \t]*([^,;\n(]+?)\s*(\([^)]*\))?(?=\s*,|\s*;|\s+e\s+\d|\s*\.|\n|$)/g)];
     if (varias.length > 1) {
       const esc = varias.find((m) => /solicitante/i.test(m[3] || "")) || varias[0];
       filial = `${esc[1]} - ${esc[2].trim()}`;
     } else {
-      filial = parteFilial.split(/,\s*CNPJ|\.\s+[A-ZÀ-Ú]|\n/)[0].replace(/\s*\(filial da solicitante\)/i, "").replace(/[.\s]+$/, "").trim() || null;
-      if (filial && filial.length > 80) filial = filial.slice(0, 80);
+      // primeira linha, sem marcador de lista nem negrito ("- Todas" é Todas; card de vários clientes: a do primeiro)
+      filial = parteFilial.split(/,\s*CNPJ|\.\s+[A-ZÀ-Ú]|\n/)[0].replace(/^[-–—•*\s]+/, "").replace(/\s*\(filial da solicitante\)/i, "").replace(/[.,;*\s]+$/, "").trim() || null;
+      if (filial && filial.length > 80) filial = filial.slice(0, 80).replace(/[.,;*\s]+$/, "");
     }
   }
   return { clienteNr, clienteNome, filial };
@@ -74,8 +90,9 @@ export function extrairClienteFilial(texto) {
 // Acha a base do cliente no arquivo de conexões pelo nome (ou por alias/contexto do clientes.json).
 export function acharBaseCliente(clienteNome, clienteNr, cfg, conexoes) {
   const candidatos = [];
-  if (clienteNome) candidatos.push(clienteNome);
-  const c = clienteNr ? cfg.clientes?.[clienteNr] : null;
+  // "EXEMPLO VEICULOS / Exemplo": cada nome do cliente é um candidato
+  if (clienteNome) candidatos.push(clienteNome, ...(clienteNome.includes("/") ? clienteNome.split(/\s*\/\s*/) : []));
+  const c = clienteNr ? cfg.clientes?.[clienteNr] ?? cfg.clientes?.[String(Number(clienteNr))] : null; // "063" é o 63
   if (c) candidatos.push(c.nome, ...(c.aliases || []), ...(c.contexto ? [c.contexto] : []));
   for (const [nr, e] of Object.entries(cfg.clientes || {})) {
     if (nr.startsWith("_") || !clienteNome) continue;
@@ -107,7 +124,7 @@ export function resolverAmbiente(texto, env = process.env) {
     const base = acharBaseCliente(clienteNome, clienteNr, cfg, conexoes);
     if (base) { ambiente = "cliente-com-base"; bancoCliente = base.banco; } else ambiente = "cliente-sem-base";
     // a filial do card vira o pedido da etapa "empresa" do login; o login cai no padrão se ela não existir na lista da stage
-    if (filial && !/^todas?\b/i.test(filial)) empresa = filial;
+    if (filial && !/^(?:aplic[aá]vel (?:a|para) )?tod[ao]s?\b/i.test(filial)) empresa = filial; // "aplicável a todas" também
   }
   return { clienteNr, clienteNome, filial, ambiente, front, banco, bancoCliente, empresa };
 }

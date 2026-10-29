@@ -80,7 +80,7 @@ if (dec.relatorio_anterior && dec.relatorio_anterior !== "NENHUM") console.log(`
 
 // 3) login na stage, escolhendo a empresa/filial do card
 console.log("[3/5] login na stage...");
-const login = node("login-stage.mjs", [], { env: { ...process.env, QA_STORAGE_STATE, QA_FRONT: env.QA_FRONT, QA_EMPRESA: chaves.qa_empresa || process.env.QA_EMPRESA || "" } });
+const login = node("login-stage.mjs", [], { env: { ...process.env, QA_STORAGE_STATE, QA_FRONT: env.QA_FRONT, QA_AMBIENTE: env.QA_AMBIENTE, QA_EMPRESA: chaves.qa_empresa || process.env.QA_EMPRESA || "" } });
 process.stdout.write(login.stdout || ""); process.stderr.write(login.stderr || "");
 if (login.status !== 0) await bloqueado(login.status === 4 ? `empresa/filial "${chaves.qa_empresa}" não existe para o usuário de teste` : `login na stage falhou (exit ${login.status})`);
 const mEmp = (login.stdout || "").match(/empresa="([^"]*)" cdempresa=(\d+)(?: empresa_pedida_nao_encontrada="([^"]*)")?/);

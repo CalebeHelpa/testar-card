@@ -10,6 +10,8 @@
 //   QA_EMPRESA                opcional: empresa da 2ª etapa. Número (código ou prefixo do apelido), apelido, parte do
 //                             nome ou a filial do card ("23 - Loja Centro"). Vazio = QA_EMPRESA_PADRAO ou a primeira.
 //   QA_EMPRESA_PADRAO         empresa usada quando a pedida não existe (padrão: "1"); QA_EMPRESA_OBRIGATORIA=1 falha (exit 4)
+//   QA_AMBIENTE               qa_ambiente do preparo (padrão: padrao). Fora de "padrao" o card é de cliente e o número da
+//                             filial é da base dele, não da stage: QA_EMPRESA casa só pelo nome. Pedido igual à padrão é a padrão.
 //   QA_STORAGE_STATE          caminho do arquivo de sessão (padrão: ./storage-state.json)
 //   QA_HEADLESS               0 = mostra o navegador (padrão: 1)
 //   QA_CHROME_EXE             executável alternativo do Chromium
@@ -38,6 +40,8 @@ if (fs.existsSync(envFile)) {
 const E = process.env;
 const { QA_USER, QA_PASS, QA_FRONT } = E;
 const EMPRESA = (E.QA_EMPRESA || "").trim();
+const AMBIENTE = (E.QA_AMBIENTE || "padrao").trim();
+const EMPRESA_PADRAO = E.QA_EMPRESA_PADRAO || "1";
 const OUT = path.resolve(E.QA_STORAGE_STATE || "storage-state.json");
 const HEADLESS = E.QA_HEADLESS !== "0";
 const SEL = { user: E.QA_LOGIN_SEL_USER || "input[name=login]", pass: E.QA_LOGIN_SEL_PASS || "input[name=senha]", submit: E.QA_LOGIN_SEL_SUBMIT || "#btnLogin", empresa: E.QA_LOGIN_SEL_EMPRESA || "#empresa", empresaSubmit: E.QA_LOGIN_SEL_EMPRESA_SUBMIT || "#btnEmpresa" };
@@ -54,12 +58,24 @@ const chromium = pw.chromium ?? pw.default?.chromium;
 const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
 // Escolhe a empresa na lista: por código/número do apelido, por apelido/nome exato, por palavras do nome.
-function escolherEmpresa(lista, pedido) {
+// soNome (card de cliente): o número da filial é da base do cliente e casar por ele entra noutra empresa da stage. Vale
+// só o nome, sem o número: apelido, nome fantasia ou rótulo inteiro, ou todas as palavras dele numa empresa só (uma
+// palavra genérica como "empresa", sozinha, puxaria qualquer empresa que a tenha no nome).
+function escolherEmpresa(lista, pedido, { soNome = false } = {}) {
   if (!lista?.length) return null;
   if (!pedido) return lista[0];
   const p = norm(pedido);
   const numero = (p.match(/^\s*(\d{1,4})\b/) || [])[1];
   const rotulo = (e) => norm(`${e.DSAPELIDO} - ${e.NMFANTASIA}`);
+  if (soNome) {
+    const nome = norm(p.replace(/\(.*?\)/g, " ").replace(/^\s*\d+\s*[-–—:]?\s*/, ""));
+    const palavras = nome.split(/[^a-z0-9]+/).filter(Boolean);
+    if (!palavras.length) return null;
+    const exato = lista.find((e) => [rotulo(e), norm(e.DSAPELIDO), norm(e.NMFANTASIA)].includes(nome));
+    if (exato) return exato;
+    const comTodas = lista.filter((e) => { const r = rotulo(e).split(/[^a-z0-9]+/); return palavras.every((w) => r.includes(w)); });
+    return comTodas.length === 1 ? comTodas[0] : null;
+  }
   if (numero) {
     const porCodigo = lista.find((e) => String(e.CDEMPRESA) === numero);
     if (porCodigo) return porCodigo;
@@ -97,18 +113,20 @@ try {
     await page.waitForFunction((js) => { try { return (eval(js) || []).length > 0; } catch { return false; } }, LISTA_JS, { timeout: 20000 }).catch(() => {});
     const lista = await page.evaluate((js) => { try { return eval(js) || []; } catch { return []; } }, LISTA_JS);
     if (lista.length) {
-      escolhida = escolherEmpresa(lista, EMPRESA);
+      // card de cliente: a filial pedida é da base do cliente, casa só pelo nome. Sem filial no card, o pedido é a padrão.
+      const soNome = AMBIENTE !== "padrao" && EMPRESA !== EMPRESA_PADRAO;
+      escolhida = escolherEmpresa(lista, EMPRESA, { soNome });
       if (!escolhida) {
-        console.error(`AVISO: empresa "${EMPRESA}" não está na lista deste usuário. Disponíveis:`);
+        console.error(`AVISO: empresa "${EMPRESA}" não está na lista deste usuário${soNome ? " (card de cliente: só o nome conta, o número da filial é da base do cliente)" : ""}. Disponíveis:`);
         for (const e of lista) console.error(`  ${e.CDEMPRESA}\t${e.DSAPELIDO} - ${e.NMFANTASIA}`);
         if (E.QA_EMPRESA_OBRIGATORIA === "1") { await browser.close(); process.exit(4); }
-        escolhida = escolherEmpresa(lista, E.QA_EMPRESA_PADRAO || "1") || lista[0];
+        escolhida = escolherEmpresa(lista, EMPRESA_PADRAO) || lista[0];
         console.error(`AVISO: usando a empresa padrão ${escolhida.CDEMPRESA} (${escolhida.DSAPELIDO} - ${escolhida.NMFANTASIA})`);
         empresaPedidaNaoEncontrada = EMPRESA;
       }
     }
     // autocomplete: o modelo só é preenchido ao escolher uma sugestão; digita-se o apelido e clica-se na sugestão exata
-    const digitar = escolhida ? escolhida.DSAPELIDO : (EMPRESA || E.QA_EMPRESA_PADRAO || "1");
+    const digitar = escolhida ? escolhida.DSAPELIDO : (EMPRESA || EMPRESA_PADRAO);
     const rotulo = escolhida ? `${escolhida.DSAPELIDO} - ${escolhida.NMFANTASIA}` : digitar;
     await campoEmpresa.click();
     await campoEmpresa.fill("");
@@ -129,7 +147,8 @@ try {
   }
   await ctx.storageState({ path: OUT });
   const emp = escolhida ? ` empresa="${escolhida.DSAPELIDO} - ${escolhida.NMFANTASIA}" cdempresa=${escolhida.CDEMPRESA}` : "";
-  const aviso = empresaPedidaNaoEncontrada ? ` empresa_pedida_nao_encontrada="${empresaPedidaNaoEncontrada}"` : "";
+  // aspas na filial do card ('o N1 registrou "aplicável a todas"') cortariam o valor que o run.mjs lê
+  const aviso = empresaPedidaNaoEncontrada ? ` empresa_pedida_nao_encontrada="${empresaPedidaNaoEncontrada.replace(/"/g, "'")}"` : "";
   // A stage pode redirecionar o login para outro endereço (ex.: IP interno → DNS público). A sessão fica presa ao
   // endereço final: registra-o ao lado da sessão para o agente e os testes de reprodução navegarem nele.
   const frontEfetivo = `${new URL(page.url()).origin}${new URL(QA_FRONT).pathname}`;

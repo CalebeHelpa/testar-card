@@ -38,7 +38,8 @@ Agent SDK: `node exemplo-sdk/run.mjs <card>` (exit 0 aprovado, 10 reprovado, 20 
 
 1. **Preparar.** `preparar-card.mjs <card>` lê o card por REST e imprime `chave=valor`: título, estado, anexos (baixados),
    branches e PRs, se a branch está em `origin/stage` e se o último build da stage a contém (`publicado_*`). Também lê o
-   template do card ("Grupo de empresa / NR Cliente", "Filial") e resolve o ambiente (`qa_*`).
+   template do card ("Grupo de empresa / NR Cliente", "Filial", ou o cabeçalho "Grupo de empresa / NR Cliente / Filial /
+   Ramo" com uma linha rotulada por campo) e resolve o ambiente (`qa_*`).
 2. **Login (fixture).** `login-stage.mjs` abre a stage com o usuário de teste, escolhe a empresa na 2ª etapa (se houver)
    e salva a sessão em `QA_STORAGE_STATE`. O agente nasce logado e nunca vê a senha.
 3. **Agente.** O Agent SDK sobe com o plugin, o Playwright MCP com a sessão salva e o prompt
@@ -114,7 +115,11 @@ levou 55 minutos, cerca de 500 ações de navegador e 47 itens de roteiro.
 ## Ambiente: uma stage, base do cliente como referência
 
 A stage grava num banco só (`FB_DB`), e a lista de empresas do login é a tabela de empresas desse banco. A filial
-citada no card é pedida na etapa de empresa; se não existir, o login usa a padrão e avisa. A base do cliente citado no
+citada no card é pedida na etapa de empresa. Em card sem cliente ela casa pelo número, pelo apelido ou por palavras do
+nome. Em card de cliente (`qa_ambiente` diferente de `padrao`, que o `run.mjs` passa ao login como `QA_AMBIENTE`) o
+número da filial é da base do cliente, não da stage, e casar por ele entraria noutra empresa: ali só o nome conta
+(apelido, nome fantasia ou rótulo inteiro, ou todas as palavras do nome numa empresa só). Sem casamento, o login usa a
+padrão (`QA_EMPRESA_PADRAO`) e avisa (`empresa_pedida_nao_encontrada=...`). A base do cliente citado no
 card (achada pelo nome num arquivo de conexões, `QA_CONEXOES`) vai para o agente como `QA_BANCO_CLIENTE`, só para
 consultas de referência. Veja `skills/testar-card/clientes.json`.
 

@@ -23,6 +23,8 @@ Os scripts ficam em `${CLAUDE_PLUGIN_ROOT}/skills/testar-card/scripts/`. Abaixo,
 | `QA_AUTONOMO` | `1` = ninguém vai responder: não pergunte, registre e siga | vazio (interativo) |
 | `QA_FRONT` | URL do front | obrigatório (URL do front) |
 | `QA_STORAGE_STATE` | sessão salva pelo `login-stage.mjs` (o Playwright MCP sobe com ela) | obrigatório |
+| `QA_AMBIENTE` | ambiente do card (`qa_ambiente` do preparo). Fora de `padrao` o card é de cliente e o número da filial é da base dele, não da stage: o login casa a filial só pelo nome (apelido ou nome fantasia, sem o número) e, sem casamento, entra na empresa padrão. Card `padrao` casa também pelo número | `padrao` |
+| `QA_EMPRESA_LOGADA`, `QA_EMPRESA_NAO_ENCONTRADA` | empresa em que a sessão entrou (`<código> - <apelido> - <nome>`) e, quando o login caiu na padrão, a filial que o card pediu | — |
 | `QA_OUT_DIR` | pasta dos screenshots (é o `--output-dir` do Playwright MCP) | obrigatório |
 | `TESTES_DIR` | pasta raiz dos relatórios (`<TESTES_DIR>/<card>/`) | `./testes-card` |
 | `REPOS_DIR` | onde estão os repos (`REPO_NOME_BACK`, `REPO_NOME_FRONT`, `REPO_NOME_MVC`, `REPO_NOME_DELPHI`) | `./repos` |
@@ -61,8 +63,9 @@ e o **ambiente do teste** lido do template do card ("Grupo de empresa / NR Clien
 
 **Ambiente.** A stage é uma só (`qa_front`) e grava num banco só (`qa_banco`): a evidência de banco dos itens
 vem **sempre** de `FB_DB=<qa_banco>`. A lista de empresas do login da stage é a tabela de empresas desse banco; `qa_empresa` é a
-filial pedida pelo card, e o login usa a padrão quando ela não existe nessa lista (`QA_EMPRESA_NAO_ENCONTRADA` no
-ambiente diz qual foi pedida; `QA_EMPRESA_LOGADA` diz em qual você está). Card com cliente indicado ganha também
+filial pedida pelo card, e o login usa a padrão quando ela não casa com essa lista (em card de cliente, só pelo nome:
+ver `QA_AMBIENTE`; `QA_EMPRESA_NAO_ENCONTRADA` no ambiente diz qual foi pedida; `QA_EMPRESA_LOGADA` diz em qual você
+está). Card com cliente indicado ganha também
 `qa_banco_cliente` (`QA_BANCO_CLIENTE`): a base daquele cliente, **só para consulta de referência** (como a tela, a
 configuração ou o dado do cliente estão), nunca como evidência do que a stage gravou. Registre no cabeçalho do
 relatório a empresa logada, o banco de evidência e o banco de referência (ou `cliente-sem-base`), e no "Não coberto"
